@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>합동 도형 짝 찾기 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        h1, h2, h3, .font-jua {
+            font-family: 'Jua', sans-serif;
+        }
+
+        /* 3D Card Flip Animations */
+        .perspective {
+            perspective: 1000px;
+        }
+        
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* The back of the card (which shows initially) */
+        .card-front {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: 2px solid #1d4ed8;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+        .card-front::after {
+            content: "?";
+            font-family: 'Jua', sans-serif;
+            opacity: 0.5;
+        }
+        .card-front:hover {
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        }
+        
+        /* The front of the card (which contains the shape) */
+        .card-back {
+            background-color: white;
+            border: 2px solid #e5e7eb;
+            transform: rotateY(180deg);
+        }
+
+        .card.matched .card-back {
+            background-color: #fef08a; /* yellow-200 */
+            border-color: #fde047;
+            box-shadow: 0 0 15px rgba(253, 224, 71, 0.6);
+        }
+
+        .shape-container {
+            width: 70%;
+            height: 70%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1f2937;
+        }
+
+        /* Responsive Grid Adjustments */
+        #game-grid {
+            display: grid;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        /* Grid sizes based on difficulty */
+        .grid-10 { grid-template-columns: repeat(5, 1fr); } /* 5x2 */
+        .grid-20 { grid-template-columns: repeat(5, 1fr); } /* 5x4 */
+        .grid-30 { grid-template-columns: repeat(6, 1fr); } /* 6x5 */
+        
+        @media (max-width: 640px) {
+            .grid-10 { grid-template-columns: repeat(4, 1fr); }
+            .grid-20 { grid-template-columns: repeat(4, 1fr); }
+            .grid-30 { grid-template-columns: repeat(5, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 text-center">
+        <h1 class="text-3xl md:text-4xl text-green-600">합동 짝 찾기 게임</h1>
+        <p class="text-gray-600 mt-2">모양과 크기가 똑같은 도형을 찾아보세요! (회전되어 있을 수 있습니다)</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col items-center justify-center p-4">
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="flex flex-col items-center bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">난이도를 선택하세요</h2>
+            <div class="flex flex-col gap-4 w-full">
+                <button onclick="startGame(5)" class="btn-difficulty bg-blue-100 hover:bg-blue-200 text-blue-800 border-2 border-blue-300 font-bold py-3 px-6 rounded-xl text-xl transition transform hover:scale-105 shadow-sm">
+                    초급 (5쌍 / 10장)
+                </button>
+                <button onclick="startGame(10)" class="btn-difficulty bg-green-100 hover:bg-green-200 text-green-800 border-2 border-green-300 font-bold py-3 px-6 rounded-xl text-xl transition transform hover:scale-105 shadow-sm">
+                    중급 (10쌍 / 20장)
+                </button>
+                <button onclick="startGame(15)" class="btn-difficulty bg-purple-100 hover:bg-purple-200 text-purple-800 border-2 border-purple-300 font-bold py-3 px-6 rounded-xl text-xl transition transform hover:scale-105 shadow-sm">
+                    고급 (15쌍 / 30장)
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="hidden w-full flex-col items-center">
+            <div class="flex justify-between w-full max-w-4xl mb-4 px-2">
+                <div class="text-lg font-bold text-gray-700 bg-white px-4 py-2 rounded-full shadow-sm">
+                    시도 횟수: <span id="moves-count" class="text-blue-600">0</span>
+                </div>
+                <div class="text-lg font-bold text-gray-700 bg-white px-4 py-2 rounded-full shadow-sm">
+                    찾은 쌍: <span id="matches-count" class="text-green-600">0</span> / <span id="total-pairs"></span>
+                </div>
+                <button onclick="returnToMenu()" class="text-sm font-bold text-gray-500 hover:text-gray-800 underline">메뉴로 돌아가기</button>
+            </div>
+            
+            <div id="game-grid" class="perspective">
+                <!-- Cards will be injected here via JS -->
+            </div>
+        </div>
+
+        <!-- Win Message Modal -->
+        <div id="win-screen" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full mx-4 transform transition-all scale-100">
+                <h2 class="text-4xl text-green-500 font-jua mb-2">성공!</h2>
+                <p class="text-gray-700 text-lg mb-6">모든 합동 도형을 찾았습니다!</p>
+                <div class="bg-gray-100 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-gray-600 mb-1">최종 시도 횟수</p>
+                    <p class="text-3xl font-bold text-blue-600" id="final-moves">0</p>
+                </div>
+                <button onclick="returnToMenu()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl text-lg transition shadow-md">
+                    다시 하기
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // 서로 확실히 구별되는 15가지 평면도형의 SVG 정의
+        const SHAPES = [
+            { id: 1, name: '정삼각형', svg: '<polygon points="50,10 93.3,85 6.7,85" fill="currentColor"/>' },
+            { id: 2, name: '정사각형', svg: '<rect x="15" y="15" width="70" height="70" fill="currentColor"/>' },
+            { id: 3, name: '원', svg: '<circle cx="50" cy="50" r="40" fill="currentColor"/>' },
+            { id: 4, name: '직각삼각형', svg: '<polygon points="15,15 15,85 85,85" fill="currentColor"/>' },
+            { id: 5, name: '마름모', svg: '<polygon points="50,10 90,50 50,90 10,50" fill="currentColor"/>' },
+            { id: 6, name: '정오각형', svg: '<polygon points="50,10 88,38 73,85 27,85 12,38" fill="currentColor"/>' },
+            { id: 7, name: '정육각형', svg: '<polygon points="25,13.4 75,13.4 100,50 75,86.6 25,86.6 0,50" fill="currentColor"/>' },
+            { id: 8, name: '별', svg: '<polygon points="50,10 61,38 90,38 67,56 75,85 50,68 25,85 33,56 10,38 39,38" fill="currentColor"/>' },
+            { id: 9, name: '직사각형', svg: '<rect x="10" y="30" width="80" height="40" fill="currentColor"/>' },
+            { id: 10, name: '사다리꼴', svg: '<polygon points="30,20 70,20 90,80 10,80" fill="currentColor"/>' },
+            { id: 11, name: '평행사변형', svg: '<polygon points="25,25 95,25 75,75 5,75" fill="currentColor"/>' },
+            { id: 12, name: '하트', svg: '<path d="M50,85 C50,85 10,55 10,30 C10,15 25,10 35,15 C45,20 50,30 50,30 C50,30 55,20 65,15 C75,10 90,15 90,30 C90,55 50,85 50,85 Z" fill="currentColor"/>' },
+            { id: 13, name: '십자가', svg: '<polygon points="35,15 65,15 65,35 85,35 85,65 65,65 65,85 35,85 35,65 15,65 15,35 35,35" fill="currentColor"/>' },
+            { id: 14, name: '화살표', svg: '<polygon points="15,40 55,40 55,20 90,50 55,80 55,60 15,60" fill="currentColor"/>' },
+            { id: 15, name: '반원', svg: '<path d="M10,65 A40,40 0 0,1 90,65 Z" fill="currentColor"/>' }
+        ];
+
+        // 게임 상태 변수
+        let cards = [];
+        let firstCard = null;
+        let secondCard = null;
+        let lockBoard = false;
+        let moves = 0;
+        let matches = 0;
+        let totalPairs = 0;
+
+        // DOM 요소
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const winScreen = document.getElementById('win-screen');
+        const gameGrid = document.getElementById('game-grid');
+        const movesCountSpan = document.getElementById('moves-count');
+        const matchesCountSpan = document.getElementById('matches-count');
+        const totalPairsSpan = document.getElementById('total-pairs');
+        const finalMovesSpan = document.getElementById('final-moves');
+
+        // 배열 셔플 함수 (Fisher-Yates)
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 합동 개념을 위해 랜덤하게 회전(0, 90, 180, 270도) 적용
+        function getRandomRotation() {
+            const rotations = [0, 90, 180, 270];
+            return rotations[Math.floor(Math.random() * rotations.length)];
+        }
+
+        // 게임 시작
+        function startGame(pairsCount) {
+            // 초기화
+            gameGrid.innerHTML = '';
+            cards = [];
+            firstCard = null;
+            secondCard = null;
+            lockBoard = false;
+            moves = 0;
+            matches = 0;
+            totalPairs = pairsCount;
+            
+            updateStats();
+            totalPairsSpan.innerText = totalPairs;
+
+            // 도형 선택 및 쌍 만들기
+            // 랜덤으로 선택하기 위해 배열 복사 후 셔플
+            let selectedShapes = shuffle([...SHAPES]).slice(0, pairsCount);
+            
+            selectedShapes.forEach(shape => {
+                // 쌍(Pair) 생성. 아이디는 동일하게 부여하여 일치 판별에 사용
+                // 회전 각도는 서로 다를 수 있도록 각각 부여
+                cards.push({ id: shape.id, svg: shape.svg, rotation: getRandomRotation() });
+                cards.push({ id: shape.id, svg: shape.svg, rotation: getRandomRotation() });
+            });
+
+            // 카드 셔플
+            cards = shuffle(cards);
+
+            // 그리드 클래스 설정
+            gameGrid.className = 'perspective grid w-full max-w-4xl mx-auto';
+            if (pairsCount === 5) gameGrid.classList.add('grid-10');
+            else if (pairsCount === 10) gameGrid.classList.add('grid-20');
+            else if (pairsCount === 15) gameGrid.classList.add('grid-30');
+
+            // 카드 DOM 생성
+            cards.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.classList.add('card', 'w-full', 'aspect-square', 'cursor-pointer');
+                cardEl.dataset.index = index;
+                cardEl.dataset.id = card.id;
+
+                // 카드 비율을 유지하기 위한 패딩 설정이 아닌 aspect-square(Tailwind) 사용
+                cardEl.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front"></div>
+                        <div class="card-back">
+                            <div class="shape-container" style="transform: rotate(${card.rotation}deg)">
+                                <svg viewBox="0 0 100 100" class="w-full h-full">
+                                    ${card.svg}
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                cardEl.addEventListener('click', flipCard);
+                gameGrid.appendChild(cardEl);
+            });
+
+            // 화면 전환
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex');
+            winScreen.classList.add('hidden');
+        }
+
+        // 카드 뒤집기
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return;
+
+            this.classList.add('flipped');
+
+            if (!firstCard) {
+                // 첫 번째 카드 뒤집음
+                firstCard = this;
+                return;
+            }
+
+            // 두 번째 카드 뒤집음
+            secondCard = this;
+            moves++;
+            updateStats();
+            checkForMatch();
+        }
+
+        // 매치 확인
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.id === secondCard.dataset.id;
+
+            if (isMatch) {
+                disableCards();
+            } else {
+                unflipCards();
+            }
+        }
+
+        // 일치할 경우 (합동인 도형)
+        function disableCards() {
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            
+            // 매칭된 효과 추가
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+
+            resetBoard();
+            
+            matches++;
+            updateStats();
+
+            if (matches === totalPairs) {
+                setTimeout(showWinScreen, 500);
+            }
+        }
+
+        // 일치하지 않을 경우
+        function unflipCards() {
+            lockBoard = true; // 대기 시간 동안 클릭 방지
+
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        // 상태 초기화
+        function resetBoard() {
+            [firstCard, secondCard] = [null, null];
+            lockBoard = false;
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            movesCountSpan.innerText = moves;
+            matchesCountSpan.innerText = matches;
+        }
+
+        // 승리 화면 표시
+        function showWinScreen() {
+            finalMovesSpan.innerText = moves;
+            winScreen.classList.remove('hidden');
+        }
+
+        // 메뉴로 돌아가기
+        function returnToMenu() {
+            startScreen.classList.remove('hidden');
+            gameScreen.classList.add('hidden');
+            gameScreen.classList.remove('flex');
+            winScreen.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
